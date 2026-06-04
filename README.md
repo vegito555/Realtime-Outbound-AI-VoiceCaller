@@ -65,6 +65,7 @@ GOOGLE_API_KEY=AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 GEMINI_MODEL=gemini-3.1-flash-live-preview
 GEMINI_TTS_VOICE=Aoede
 USE_GEMINI_REALTIME=true
+GREETING_READY_DELAY_SECONDS=0.1    # optional; lower first-greeting pause, set 0 to disable
 
 # Vobiz SIP
 VOBIZ_SIP_DOMAIN=xxxxxxxx.sip.vobiz.ai
@@ -177,7 +178,7 @@ If any of those fail, open `Logs` in the dashboard for the agent / server stack 
 | Dial-first; `wait_until_answered=True` BEFORE `session.start()` | Otherwise session times out during ring |
 | Never `close_on_disconnect=True` with SIP | SIP audio dropouts kill the session |
 | All 3 silence-prevention configs (session resumption + window compression + LOW end-sensitivity) | Without them, calls go silent in 30–90 s |
-| Gemini 3.1 / 2.5 speak autonomously — skip explicit `generate_reply()` | Plugin blocks the call and raises an error |
+| Gemini 3.1 opener uses `session.say()` — never fall back to `generate_reply()` for the first turn | Gemini 3.1 rejects `send_client_content`, causing the timeout from livekit/agents#5260 |
 | Server on port 8000, agent worker outbound only | Hardcoded in `start.sh` |
 | Never bake credentials into the image, `.env`, or Supabase | Single source of truth = host env vars |
 

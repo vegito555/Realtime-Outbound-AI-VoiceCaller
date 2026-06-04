@@ -144,6 +144,18 @@ def _trunk_id_hint(trunk_id: str) -> str:
     return ""
 
 
+def _is_gemini_31_live_model(model_name: str) -> bool:
+    model = (model_name or "").lower()
+    return model.startswith("gemini-3.1-") and "live" in model
+
+
+def _greeting_ready_delay() -> float:
+    try:
+        return max(float(os.getenv("GREETING_READY_DELAY_SECONDS", "0.1")), 0.0)
+    except ValueError:
+        return 0.1
+
+
 class OutboundAssistant(Agent):
     def __init__(self, instructions: str) -> None:
         super().__init__(instructions=instructions, tools=[])
@@ -298,15 +310,12 @@ async def entrypoint(ctx: agents.JobContext) -> None:
     await _safe_log("info", "Agent session started — generating greeting")
 
     # ── Greeting FIRST (zero dead air) ───────────────────────────────────────
-    # On Gemini Live realtime, the WebSocket to Google needs ~200-400ms to be
-    # fully ready after session.start(). Calling generate_reply immediately
-    # often gets dropped and the model sits silent until the user speaks.
-    # 1. Small delay so the realtime channel is live.
-    # 2. Try session.say() first — it directly emits audio and is the most
-    #    reliable way to get a fixed first line out on every model type.
-    # 3. Fall back to generate_reply with an explicit user_input that forces
-    #    Gemini to treat the call connection as a turn it must answer.
-    await asyncio.sleep(0.3)
+    # Gemini 3.1 Live rejects send_client_content after initial history seeding,
+    # which makes generate_reply() wait until it times out. Use session.say()
+    # for the opener and keep the tiny readiness pause configurable for Docker.
+    greeting_delay = _greeting_ready_delay()
+    if greeting_delay > 0:
+        await asyncio.sleep(greeting_delay)
     if phone_number:
         greeting_text = f"Hi, am I speaking with {lead_name}?"
     else:
@@ -318,9 +327,15 @@ async def entrypoint(ctx: agents.JobContext) -> None:
         greeting_fired = True
         await _safe_log("info", f"Greeting via session.say(): {greeting_text}")
     except Exception as exc:
-        await _safe_log("warning", f"session.say() unavailable, falling back: {exc}")
+        await _safe_log("warning", f"session.say() failed: {exc}")
 
-    if not greeting_fired:
+    if not greeting_fired and _is_gemini_31_live_model(gemini_model):
+        await _safe_log(
+            "warning",
+            "Skipping generate_reply fallback for Gemini 3.1 Live; "
+            "it is blocked by LiveKit agents#5260 / Gemini send_client_content limits.",
+        )
+    elif not greeting_fired:
         try:
             await session.generate_reply(
                 user_input=(

@@ -1,8 +1,8 @@
-livekit-agents>=1.0.0
-livekit-api>=0.8.0
-livekit-plugins-google>=1.0.0
-livekit-plugins-deepgram>=0.8.0
-livekit-plugins-silero>=0.8.0
+livekit-agents[google]>=1.5.12,<1.6
+livekit-api>=1.0.5,<2.0
+livekit-plugins-google>=1.5.12,<1.6
+livekit-plugins-deepgram>=1.5.12,<1.6
+livekit-plugins-silero>=1.5.12,<1.6
 livekit-plugins-noise-cancellation
 fastapi>=0.110.0
 uvicorn[standard]>=0.29.0
