@@ -51,6 +51,8 @@ logger = logging.getLogger("server")
 
 init_db()
 
+SUPPORTED_GEMINI_MODEL = "gemini-3.1-flash-live-preview"
+
 try:
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
     from apscheduler.triggers.cron import CronTrigger
@@ -90,6 +92,18 @@ def _lk_session() -> aiohttp.ClientSession:
     return aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=ctx))
 
 
+def _normalize_agent_model(model: Optional[str]) -> str:
+    requested = (model or "").strip()
+    if not requested or requested == SUPPORTED_GEMINI_MODEL:
+        return SUPPORTED_GEMINI_MODEL
+    logger.warning(
+        "Unsupported model override '%s' requested; forcing %s",
+        requested,
+        SUPPORTED_GEMINI_MODEL,
+    )
+    return SUPPORTED_GEMINI_MODEL
+
+
 # ── Request models ────────────────────────────────────────────────────────────
 
 
@@ -105,7 +119,7 @@ class CallRequest(BaseModel):
 class AgentProfileRequest(BaseModel):
     name: str
     voice: str = "Aoede"
-    model: str = "gemini-3.1-flash-live-preview"
+    model: str = SUPPORTED_GEMINI_MODEL
     system_prompt: Optional[str] = None
     enabled_tools: str = "[]"
     is_default: bool = False
@@ -404,7 +418,7 @@ async def api_list_agent_profiles():
 async def api_create_agent_profile(req: AgentProfileRequest):
     try:
         profile_id = await create_agent_profile(
-            name=req.name, voice=req.voice, model=req.model,
+            name=req.name, voice=req.voice, model=_normalize_agent_model(req.model),
             system_prompt=req.system_prompt, enabled_tools=req.enabled_tools,
             is_default=req.is_default,
         )
@@ -426,7 +440,9 @@ async def api_update_agent_profile(profile_id: str, req: AgentProfileRequest):
     ok = await update_agent_profile(
         profile_id,
         {
-            "name": req.name, "voice": req.voice, "model": req.model,
+            "name": req.name,
+            "voice": req.voice,
+            "model": _normalize_agent_model(req.model),
             "system_prompt": req.system_prompt, "enabled_tools": req.enabled_tools,
             "is_default": 1 if req.is_default else 0,
         },
