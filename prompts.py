@@ -107,8 +107,10 @@ def build_prompt(
     profile_status="unknown",
     pending_tests="none",
     pending_tasks="none",
+    custom_prompt=None,
+    **kwargs,
 ):
-    return DEFAULT_SYSTEM_PROMPT.format(
+    base = DEFAULT_SYSTEM_PROMPT.format(
         lead_name=lead_name,
         phone=phone,
         account_status=account_status,
@@ -117,3 +119,6 @@ def build_prompt(
         pending_tests=pending_tests,
         pending_tasks=pending_tasks,
     )
+    if custom_prompt:
+        return f"{base}\n\n{custom_prompt}"
+    return base
