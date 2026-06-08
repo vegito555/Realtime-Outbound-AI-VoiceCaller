@@ -1,4 +1,4 @@
-livekit-agents[google]>=1.5.12,<1.6
+livekit-agents[google] @ git+https://github.com/acharan-tech-200037/agents.git@fix-gemini3.1_generatereply_issue#subdirectory=livekit-agents
 livekit-api>=1.0.5,<2.0
 livekit-plugins-google @ git+https://github.com/acharan-tech-200037/agents.git@fix-gemini3.1_generatereply_issue#subdirectory=livekit-plugins/livekit-plugins-google
 livekit-plugins-deepgram>=1.5.12,<1.6
