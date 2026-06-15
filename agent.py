@@ -169,6 +169,51 @@ async def _safe_log(level: str, msg: str, detail: str = "") -> None:
         pass
 
 
+async def _play_wav_file(ctx: agents.JobContext, filepath: str) -> bool:
+    import wave
+    if not os.path.exists(filepath):
+        logger.warning(f"WAV file not found at {filepath}")
+        return False
+
+    logger.info(f"Playing WAV greeting from {filepath}...")
+    try:
+        with wave.open(filepath, "rb") as wav:
+            channels = wav.getnchannels()
+            sample_rate = wav.getframerate()
+            sample_width = wav.getsampwidth()
+
+            source = rtc.AudioSource(sample_rate, channels)
+            track = rtc.LocalAudioTrack.create_audio_track("greeting-wav", source)
+            options = rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE)
+            publication = await ctx.room.local_participant.publish_track(track, options)
+
+            frame_duration = 0.02
+            samples_per_channel = int(sample_rate * frame_duration)
+
+            while True:
+                data = wav.readframes(samples_per_channel)
+                if not data:
+                    break
+
+                samples_read = len(data) // (channels * sample_width)
+                if samples_read > 0:
+                    frame = rtc.AudioFrame(
+                        data=data,
+                        sample_rate=sample_rate,
+                        num_channels=channels,
+                        samples_per_channel=samples_read,
+                    )
+                    await source.capture_frame(frame)
+                await asyncio.sleep(frame_duration)
+
+            logger.info("WAV greeting playback finished. Unpublishing track.")
+            await ctx.room.local_participant.unpublish_track(publication.sid)
+            return True
+    except Exception as exc:
+        logger.exception(f"Failed playing WAV file: {exc}")
+        return False
+
+
 async def entrypoint(ctx: agents.JobContext) -> None:
     logger.info("Connecting to room: %s", ctx.room.name)
     await ctx.connect()
@@ -268,6 +313,10 @@ async def entrypoint(ctx: agents.JobContext) -> None:
                 return
             await _safe_log("info", f"Call ANSWERED — {phone_number}, starting AI session")
 
+    # ── Play WAV in background while building/starting the session ──────────
+    wav_path = os.path.join(os.path.dirname(__file__), "Greeting.wav")
+    play_task = asyncio.create_task(_play_wav_file(ctx, wav_path))
+
     # ── Build & start session AFTER answer ───────────────────────────────────
     gemini_model = model_override or os.getenv("GEMINI_MODEL", "gemini-3.1-flash-live-preview")
     gemini_voice = voice_override or os.getenv("GEMINI_TTS_VOICE", "Aoede")
@@ -307,47 +356,51 @@ async def entrypoint(ctx: agents.JobContext) -> None:
         )
 
     await session.start(**session_kwargs)
-    await _safe_log("info", "Agent session started — generating greeting")
+    await _safe_log("info", "Agent session started in parallel with WAV playback")
 
-    # ── Greeting FIRST (zero dead air) ───────────────────────────────────────
-    # Gemini 3.1 Live rejects send_client_content after initial history seeding,
-    # which makes generate_reply() wait until it times out. Use session.say()
-    # for the opener and keep the tiny readiness pause configurable for Docker.
-    greeting_delay = _greeting_ready_delay()
-    if greeting_delay > 0:
-        await asyncio.sleep(greeting_delay)
-    if phone_number:
-        greeting_text = f"Hi, am I speaking with {lead_name}?"
-    else:
-        greeting_text = "Hi, this is Priya from TBD Campus. How can I help?"
+    # Wait for the WAV playback task to complete
+    wav_played = await play_task
 
-    greeting_fired = False
-    try:
-        await session.say(greeting_text, allow_interruptions=True)
-        greeting_fired = True
-        await _safe_log("info", f"Greeting via session.say(): {greeting_text}")
-    except Exception as exc:
-        await _safe_log("warning", f"session.say() failed: {exc}")
+    if not wav_played:
+        # ── Greeting FIRST (zero dead air) ───────────────────────────────────────
+        # Gemini 3.1 Live rejects send_client_content after initial history seeding,
+        # which makes generate_reply() wait until it times out. Use session.say()
+        # for the opener and keep the tiny readiness pause configurable for Docker.
+        greeting_delay = _greeting_ready_delay()
+        if greeting_delay > 0:
+            await asyncio.sleep(greeting_delay)
+        if phone_number:
+            greeting_text = f"Hi, am I speaking with {lead_name}?"
+        else:
+            greeting_text = "Hi, this is Priya from TBD Campus. How can I help?"
 
-    if not greeting_fired and _is_gemini_31_live_model(gemini_model):
-        await _safe_log(
-            "warning",
-            "Skipping generate_reply fallback for Gemini 3.1 Live; "
-            "it is blocked by LiveKit agents#5260 / Gemini send_client_content limits.",
-        )
-    elif not greeting_fired:
+        greeting_fired = False
         try:
-            await session.generate_reply(
-                user_input=(
-                    "[SYSTEM: outbound call just connected and the lead has picked up]"
-                ),
-                instructions=(
-                    f"You must speak FIRST. Say exactly: \"{greeting_text}\""
-                ),
-            )
-            await _safe_log("info", "Greeting via generate_reply()")
+            await session.say(greeting_text, allow_interruptions=True)
+            greeting_fired = True
+            await _safe_log("info", f"Greeting via session.say(): {greeting_text}")
         except Exception as exc:
-            await _safe_log("warning", f"generate_reply failed: {exc}")
+            await _safe_log("warning", f"session.say() failed: {exc}")
+
+        if not greeting_fired and _is_gemini_31_live_model(gemini_model):
+            await _safe_log(
+                "warning",
+                "Skipping generate_reply fallback for Gemini 3.1 Live; "
+                "it is blocked by LiveKit agents#5260 / Gemini send_client_content limits.",
+            )
+        elif not greeting_fired:
+            try:
+                await session.generate_reply(
+                    user_input=(
+                        "[SYSTEM: outbound call just connected and the lead has picked up]"
+                    ),
+                    instructions=(
+                        f"You must speak FIRST. Say exactly: \"{greeting_text}\""
+                    ),
+                )
+                await _safe_log("info", "Greeting via generate_reply()")
+            except Exception as exc:
+                await _safe_log("warning", f"generate_reply failed: {exc}")
 
     # ── Optional S3 recording (fire-and-forget so it never blocks greeting) ──
     if phone_number:
