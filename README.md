@@ -56,28 +56,28 @@ Set every one of these in Coolify (or your VPS env). Lower group is optional.
 
 ```bash
 # LiveKit Cloud (cloud.livekit.io)
-LIVEKIT_URL=wss://your-project.livekit.cloud
-LIVEKIT_API_KEY=APIxxxxxxxxxxxxxxxxx
-LIVEKIT_API_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+LIVEKIT_URL=
+LIVEKIT_API_KEY=
+LIVEKIT_API_SECRET=
 
 # Google Gemini (aistudio.google.com/app/apikey)
-GOOGLE_API_KEY=AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+GOOGLE_API_KEY=
 GEMINI_MODEL=gemini-3.1-flash-live-preview
 GEMINI_TTS_VOICE=Aoede
 USE_GEMINI_REALTIME=true
 GREETING_READY_DELAY_SECONDS=0.1    # optional; lower first-greeting pause, set 0 to disable
 
 # Vobiz SIP
-VOBIZ_SIP_DOMAIN=xxxxxxxx.sip.vobiz.ai
+VOBIZ_SIP_DOMAIN=
 VOBIZ_USERNAME=your_username
 VOBIZ_PASSWORD=your_password
-VOBIZ_OUTBOUND_NUMBER=+919876543210
-OUTBOUND_TRUNK_ID=ST_xxxxxxxxxxxxxxxx        # filled after Create SIP Trunk
-DEFAULT_TRANSFER_NUMBER=+919876543210
+VOBIZ_OUTBOUND_NUMBER=
+OUTBOUND_TRUNK_ID=       # filled after Create SIP Trunk
+DEFAULT_TRANSFER_NUMBER=
 
 # Supabase (Project Settings → API)
-SUPABASE_URL=https://xxxxxxxxxxxxxxxx.supabase.co
-SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+SUPABASE_URL=
+SUPABASE_SERVICE_KEY=
 
 # ── Optional ──
 TWILIO_ACCOUNT_SID=
