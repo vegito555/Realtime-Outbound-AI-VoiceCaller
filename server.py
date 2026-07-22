@@ -151,6 +151,34 @@ class StatusRequest(BaseModel):
     status: str
 
 
+class WhatsAppSendRequest(BaseModel):
+    to: str
+    message: str
+    channel_id: Optional[str] = None
+    waba_id: Optional[str] = None
+
+
+class WhatsAppTemplateRequest(BaseModel):
+    to: str
+    template_name: str
+    language_code: str = "en_US"
+    channel_id: Optional[str] = None
+    waba_id: Optional[str] = None
+    components: Optional[list] = None
+    category: Optional[str] = None
+
+
+class WhatsAppChannelRequest(BaseModel):
+    waba_id: str
+    phone_number_id: str
+    phone_number: str
+    access_token: str
+    display_name: str
+    number_onboarding_mode: str = "bring_your_own"
+    number_provider: str = "meta_direct"
+    number_order_id: Optional[str] = None
+
+
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
 
@@ -401,6 +429,157 @@ async def api_get_contacts():
 @app.get("/api/crm/calls")
 async def api_get_contact_calls(phone: str = Query(...)):
     return {"data": await get_calls_by_phone(phone)}
+
+
+# ── WhatsApp (Vobiz) ──────────────────────────────────────────────────────────
+
+
+@app.post("/api/whatsapp/send")
+async def api_whatsapp_send(req: WhatsAppSendRequest):
+    """Send a WhatsApp text message via Vobiz."""
+    auth_id = eff("VOBIZ_AUTH_ID")
+    auth_token = eff("VOBIZ_AUTH_TOKEN")
+    if not (auth_id and auth_token):
+        raise HTTPException(400, "Vobiz WhatsApp not configured. Set VOBIZ_AUTH_ID and VOBIZ_AUTH_TOKEN.")
+    try:
+        from vobiz_client import send_text_message, VobizError
+        result = await send_text_message(
+            to=req.to, body=req.message,
+            channel_id=req.channel_id, waba_id=req.waba_id,
+        )
+        try:
+            from db import log_whatsapp_message
+            await log_whatsapp_message(
+                phone_number=req.to,
+                message_type="text",
+                content=req.message,
+                vobiz_message_id=result.get("id", ""),
+                status=result.get("status", "pending"),
+            )
+        except Exception:
+            pass
+        return {"status": "sent", "message": result}
+    except VobizError as exc:
+        raise HTTPException(exc.status_code, f"Vobiz API error: {exc.message}")
+    except RuntimeError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:
+        raise HTTPException(500, f"WhatsApp send failed: {exc}")
+
+
+@app.post("/api/whatsapp/send-template")
+async def api_whatsapp_send_template(req: WhatsAppTemplateRequest):
+    """Send a WhatsApp template message via Vobiz."""
+    auth_id = eff("VOBIZ_AUTH_ID")
+    auth_token = eff("VOBIZ_AUTH_TOKEN")
+    if not (auth_id and auth_token):
+        raise HTTPException(400, "Vobiz WhatsApp not configured. Set VOBIZ_AUTH_ID and VOBIZ_AUTH_TOKEN.")
+    try:
+        from vobiz_client import send_template_message, VobizError
+        result = await send_template_message(
+            to=req.to,
+            template_name=req.template_name,
+            language_code=req.language_code,
+            channel_id=req.channel_id,
+            waba_id=req.waba_id,
+            components=req.components,
+            category=req.category,
+        )
+        try:
+            from db import log_whatsapp_message
+            await log_whatsapp_message(
+                phone_number=req.to,
+                message_type="template",
+                content=req.template_name,
+                vobiz_message_id=result.get("id", ""),
+                status=result.get("status", "pending"),
+            )
+        except Exception:
+            pass
+        return {"status": "sent", "message": result}
+    except VobizError as exc:
+        raise HTTPException(exc.status_code, f"Vobiz API error: {exc.message}")
+    except RuntimeError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:
+        raise HTTPException(500, f"WhatsApp template send failed: {exc}")
+
+
+@app.get("/api/whatsapp/channels")
+async def api_whatsapp_list_channels():
+    """List all WhatsApp channels connected to the Vobiz account."""
+    auth_id = eff("VOBIZ_AUTH_ID")
+    auth_token = eff("VOBIZ_AUTH_TOKEN")
+    if not (auth_id and auth_token):
+        raise HTTPException(400, "Vobiz WhatsApp not configured. Set VOBIZ_AUTH_ID and VOBIZ_AUTH_TOKEN.")
+    try:
+        from vobiz_client import list_channels, VobizError
+        channels = await list_channels()
+        return {"channels": channels}
+    except VobizError as exc:
+        raise HTTPException(exc.status_code, f"Vobiz API error: {exc.message}")
+    except RuntimeError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:
+        raise HTTPException(500, f"Failed to list channels: {exc}")
+
+
+@app.post("/api/whatsapp/channels")
+async def api_whatsapp_create_channel(req: WhatsAppChannelRequest):
+    """Create a new WhatsApp Business channel on Vobiz."""
+    auth_id = eff("VOBIZ_AUTH_ID")
+    auth_token = eff("VOBIZ_AUTH_TOKEN")
+    if not (auth_id and auth_token):
+        raise HTTPException(400, "Vobiz WhatsApp not configured. Set VOBIZ_AUTH_ID and VOBIZ_AUTH_TOKEN.")
+    try:
+        from vobiz_client import create_channel, VobizError
+        channel = await create_channel(
+            waba_id=req.waba_id,
+            phone_number_id=req.phone_number_id,
+            phone_number=req.phone_number,
+            access_token=req.access_token,
+            display_name=req.display_name,
+            number_onboarding_mode=req.number_onboarding_mode,
+            number_provider=req.number_provider,
+            number_order_id=req.number_order_id,
+        )
+        return {"status": "created", "channel": channel}
+    except VobizError as exc:
+        raise HTTPException(exc.status_code, f"Vobiz API error: {exc.message}")
+    except RuntimeError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:
+        raise HTTPException(500, f"Channel creation failed: {exc}")
+
+
+@app.delete("/api/whatsapp/channels/{channel_id}")
+async def api_whatsapp_delete_channel(channel_id: str):
+    """Delete a WhatsApp channel by its ID."""
+    auth_id = eff("VOBIZ_AUTH_ID")
+    auth_token = eff("VOBIZ_AUTH_TOKEN")
+    if not (auth_id and auth_token):
+        raise HTTPException(400, "Vobiz WhatsApp not configured. Set VOBIZ_AUTH_ID and VOBIZ_AUTH_TOKEN.")
+    try:
+        from vobiz_client import delete_channel, VobizError
+        result = await delete_channel(channel_id)
+        return {"status": "deleted", "result": result}
+    except VobizError as exc:
+        raise HTTPException(exc.status_code, f"Vobiz API error: {exc.message}")
+    except RuntimeError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:
+        raise HTTPException(500, f"Channel deletion failed: {exc}")
+
+
+@app.get("/api/whatsapp/messages")
+async def api_whatsapp_messages(limit: int = 50):
+    """Get recent WhatsApp message logs from the database."""
+    try:
+        from db import get_whatsapp_messages
+        messages = await get_whatsapp_messages(limit=limit)
+        return {"data": messages}
+    except Exception as exc:
+        raise HTTPException(500, f"Failed to fetch WhatsApp messages: {exc}")
 
 
 # ── Agent Profiles ────────────────────────────────────────────────────────────

@@ -73,3 +73,9 @@ DEFAULT_TRANSFER_NUMBER = os.getenv("DEFAULT_TRANSFER_NUMBER")
 # Vobiz Trunk Details (Loaded from .env usually, but you can hardcode if needed)
 SIP_TRUNK_ID = os.getenv("VOBIZ_SIP_TRUNK_ID")
 SIP_DOMAIN = os.getenv("VOBIZ_SIP_DOMAIN")
+
+# --- 6. VOBIZ WHATSAPP MESSAGING ---
+VOBIZ_AUTH_ID = os.getenv("VOBIZ_AUTH_ID", "")
+VOBIZ_AUTH_TOKEN = os.getenv("VOBIZ_AUTH_TOKEN", "")
+VOBIZ_WA_CHANNEL_ID = os.getenv("VOBIZ_WA_CHANNEL_ID", "")
+VOBIZ_WA_WABA_ID = os.getenv("VOBIZ_WA_WABA_ID", "")

@@ -28,6 +28,10 @@ DEFAULTS = {
     "SUPABASE_URL":            os.getenv("SUPABASE_URL", ""),
     "SUPABASE_SERVICE_KEY":    os.getenv("SUPABASE_SERVICE_KEY", ""),
     "DEEPGRAM_API_KEY":        os.getenv("DEEPGRAM_API_KEY", ""),
+    "VOBIZ_AUTH_ID":           os.getenv("VOBIZ_AUTH_ID", ""),
+    "VOBIZ_AUTH_TOKEN":        os.getenv("VOBIZ_AUTH_TOKEN", ""),
+    "VOBIZ_WA_CHANNEL_ID":     os.getenv("VOBIZ_WA_CHANNEL_ID", ""),
+    "VOBIZ_WA_WABA_ID":        os.getenv("VOBIZ_WA_WABA_ID", ""),
 }
 
 
@@ -41,7 +45,7 @@ SUPABASE_KEY = _default("SUPABASE_SERVICE_KEY")
 
 SENSITIVE_KEYS = {
     "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET", "GOOGLE_API_KEY",
-    "VOBIZ_PASSWORD", "TWILIO_AUTH_TOKEN", "SUPABASE_SERVICE_KEY",
+    "VOBIZ_PASSWORD", "VOBIZ_AUTH_TOKEN", "TWILIO_AUTH_TOKEN", "SUPABASE_SERVICE_KEY",
     "AWS_SECRET_ACCESS_KEY", "S3_SECRET_ACCESS_KEY", "CALCOM_API_KEY",
     "DEEPGRAM_API_KEY",
 }
@@ -123,6 +127,7 @@ KNOWN_KEYS = [
     "DEEPGRAM_API_KEY", "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM_NUMBER",
     "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY", "S3_ENDPOINT_URL", "S3_REGION", "S3_BUCKET",
     "CALCOM_API_KEY", "CALCOM_EVENT_TYPE_ID", "CALCOM_TIMEZONE",
+    "VOBIZ_AUTH_ID", "VOBIZ_AUTH_TOKEN", "VOBIZ_WA_CHANNEL_ID", "VOBIZ_WA_WABA_ID",
     "ENABLED_TOOLS",
 ]
 
@@ -567,3 +572,41 @@ async def get_default_agent_profile() -> Optional[dict]:
     result = await db.table("agent_profiles").select("*").eq("is_default", 1).limit(1).execute()
     rows = result.data or []
     return rows[0] if rows else None
+
+
+# ── WhatsApp Messages ─────────────────────────────────────────────────────────
+
+
+async def log_whatsapp_message(
+    phone_number: str,
+    message_type: str,
+    content: str,
+    vobiz_message_id: str = "",
+    status: str = "pending",
+) -> str:
+    """Log a WhatsApp message sent via Vobiz. Returns the log row ID."""
+    msg_id = str(uuid.uuid4())
+    db = await _adb()
+    await db.table("whatsapp_messages").insert({
+        "id": msg_id,
+        "phone_number": phone_number,
+        "message_type": message_type,
+        "content": (content or "")[:2000],
+        "vobiz_message_id": vobiz_message_id or "",
+        "status": status,
+        "created_at": datetime.now().isoformat(),
+    }).execute()
+    return msg_id
+
+
+async def get_whatsapp_messages(limit: int = 50) -> list:
+    """Get recent WhatsApp messages, most recent first."""
+    db = await _adb()
+    result = (
+        await db.table("whatsapp_messages")
+        .select("*")
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return result.data or []

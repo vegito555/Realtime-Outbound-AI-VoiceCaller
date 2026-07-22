@@ -88,3 +88,15 @@ CREATE TABLE IF NOT EXISTS agent_profiles (
     created_at TEXT NOT NULL
 );
 ALTER TABLE agent_profiles DISABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS whatsapp_messages (
+    id TEXT PRIMARY KEY,
+    phone_number TEXT NOT NULL,
+    message_type TEXT NOT NULL DEFAULT 'text',
+    content TEXT,
+    vobiz_message_id TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL
+);
+ALTER TABLE whatsapp_messages DISABLE ROW LEVEL SECURITY;
+CREATE INDEX IF NOT EXISTS idx_whatsapp_phone ON whatsapp_messages (phone_number);

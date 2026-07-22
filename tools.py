@@ -16,7 +16,9 @@ from db import (
     check_slot, get_next_available, insert_appointment, log_call,
     log_error, get_calls_by_phone, get_appointments_by_phone,
     add_contact_memory, get_contact_memory, compress_contact_memory,
+    log_whatsapp_message,
 )
+from vobiz_client import send_text_message as _vobiz_send_text, VobizError
 
 logger = logging.getLogger("appointment-tools")
 
@@ -51,6 +53,7 @@ class AppointmentTools(llm.ToolContext):
             self.check_availability, self.book_appointment, self.end_call,
             self.transfer_to_human, self.send_sms_confirmation, self.lookup_contact,
             self.remember_details, self.book_calcom, self.cancel_calcom,
+            self.send_whatsapp,
         ]
         if not enabled:
             return all_methods
@@ -304,3 +307,37 @@ class AppointmentTools(llm.ToolContext):
             return f"Cal.com booking {uid} cancelled."
         except Exception as exc:
             return f"Cancel failed: {exc}"
+
+    @llm.function_tool
+    async def send_whatsapp(self, phone: str, message: str) -> str:
+        """
+        Send a WhatsApp text message to the lead via Vobiz.
+        Use when the lead asks you to send details, a link, or confirmation on WhatsApp.
+        phone: recipient phone in E.164 format (e.g. +919876543210).
+        message: the text body to send.
+        """
+        auth_id = os.getenv("VOBIZ_AUTH_ID", "")
+        auth_token = os.getenv("VOBIZ_AUTH_TOKEN", "")
+        if not (auth_id and auth_token):
+            return "WhatsApp not configured — cannot send message."
+        try:
+            result = await _vobiz_send_text(to=phone, body=message)
+            msg_id = result.get("id", "unknown")
+            status = result.get("status", "pending")
+            try:
+                await log_whatsapp_message(
+                    phone_number=phone,
+                    message_type="text",
+                    content=message,
+                    vobiz_message_id=msg_id,
+                    status=status,
+                )
+            except Exception:
+                pass
+            return f"WhatsApp message sent to {phone} (ID: {msg_id}, status: {status})."
+        except VobizError as exc:
+            logger.error("WhatsApp send failed (VobizError): %s", exc)
+            return f"WhatsApp send failed: {exc.message}"
+        except Exception as exc:
+            logger.error("WhatsApp send failed: %s", exc)
+            return f"WhatsApp send failed: {exc}"

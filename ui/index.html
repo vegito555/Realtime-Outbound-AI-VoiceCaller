@@ -100,6 +100,7 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0}
   <button data-tab="appointments">📅 Appointments</button>
   <button data-tab="calls">📝 Call Logs</button>
   <button data-tab="crm">👥 CRM</button>
+  <button data-tab="whatsapp">💬 WhatsApp</button>
   <button data-tab="settings">⚙️ Settings</button>
   <button data-tab="logs">📋 Logs</button>
   <button data-tab="setup">🔧 Setup</button>
@@ -312,6 +313,64 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0}
   </div>
 </section>
 
+<!-- ==== WHATSAPP ==== -->
+<section id="p-whatsapp" class="panel">
+  <div class="card">
+    <h2>💬 Send WhatsApp Message</h2>
+    <p class="muted">Send a text message via Vobiz WhatsApp API. Recipient must have an active WhatsApp account.</p>
+    <form id="wa-send-form">
+      <div class="row">
+        <div class="field"><label>Recipient Phone (E.164) *</label><input type="tel" id="wa-to" placeholder="+919876543210" required /></div>
+        <div class="field"><label>Channel ID (optional — uses env default if blank)</label><input type="text" id="wa-channel-id" placeholder="auto from VOBIZ_WA_CHANNEL_ID" /></div>
+      </div>
+      <div class="field"><label>Message *</label><textarea id="wa-message" rows="4" placeholder="Hello! This is a message from TBD Campus." required></textarea></div>
+      <button type="submit" class="btn">💬 Send Message</button>
+      <div class="err" id="wa-err"></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>📋 WhatsApp Channels</h2>
+    <p class="muted">Channels connected to your Vobiz account.</p>
+    <button class="btn ghost" onclick="loadWAChannels()">🔄 Refresh Channels</button>
+    <div id="wa-channels" style="margin-top:12px"><span class="muted">Click refresh to load.</span></div>
+  </div>
+
+  <div class="card">
+    <h2>📨 Message History</h2>
+    <button class="btn ghost" onclick="loadWAMessages()">🔄 Refresh Messages</button>
+    <div id="wa-messages" class="scroll" style="margin-top:12px;max-height:360px"><span class="muted">Click refresh to load.</span></div>
+  </div>
+
+  <div class="card">
+    <h2>🔗 Connect New Channel</h2>
+    <p class="muted">Connect a WhatsApp Business number (BYON). Get credentials from Meta Business Manager.</p>
+    <form id="wa-channel-form">
+      <div class="row">
+        <div class="field"><label>WABA ID *</label><input type="text" id="wc-waba-id" placeholder="1911116896216319" required /></div>
+        <div class="field"><label>Phone Number ID *</label><input type="text" id="wc-phone-id" placeholder="974161339121558" required /></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Phone Number (E.164) *</label><input type="tel" id="wc-phone" placeholder="+15551234567" required /></div>
+        <div class="field"><label>Display Name *</label><input type="text" id="wc-display-name" placeholder="My Business" required /></div>
+      </div>
+      <div class="field eye"><label>Meta Access Token *</label><input type="password" id="wc-access-token" placeholder="EAAx..." required /><button type="button" class="toggle-eye" onclick="togglePw('wc-access-token')">👁</button></div>
+      <div class="row">
+        <div class="field"><label>Onboarding Mode</label>
+          <select id="wc-onboarding">
+            <option value="bring_your_own">bring_your_own</option>
+            <option value="buy_from_vobiz">buy_from_vobiz</option>
+            <option value="embedded_signup">embedded_signup</option>
+          </select>
+        </div>
+        <div class="field"><label>Number Provider</label><input type="text" id="wc-provider" value="meta_direct" /></div>
+      </div>
+      <button type="submit" class="btn alt">🔗 Connect Channel</button>
+      <div class="err" id="wc-err"></div>
+    </form>
+  </div>
+</section>
+
 <!-- ==== SETTINGS ==== -->
 <section id="p-settings" class="panel">
 
@@ -368,7 +427,20 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0}
   </div>
 
   <div class="card">
-    <h2>📲 Twilio SMS (optional)</h2>
+    <h2>� Vobiz WhatsApp Messaging</h2>
+    <p class="muted">Get from <a href="https://console.vobiz.ai" target="_blank">console.vobiz.ai</a> → Settings → API. <a href="https://vobiz.ai/docs/whatsapp/api" target="_blank">API docs</a></p>
+    <div class="row">
+      <div class="field"><label>VOBIZ_AUTH_ID</label><input type="text" id="s-VOBIZ_AUTH_ID" placeholder="MA_XXXXXXXX" /></div>
+      <div class="field eye"><label>VOBIZ_AUTH_TOKEN</label><input type="password" id="s-VOBIZ_AUTH_TOKEN" /><button type="button" class="toggle-eye" onclick="togglePw('s-VOBIZ_AUTH_TOKEN')">👁</button></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>VOBIZ_WA_CHANNEL_ID</label><input type="text" id="s-VOBIZ_WA_CHANNEL_ID" placeholder="UUID from console" /></div>
+      <div class="field"><label>VOBIZ_WA_WABA_ID</label><input type="text" id="s-VOBIZ_WA_WABA_ID" placeholder="WABA ID from Meta" /></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>� Twilio SMS (optional)</h2>
     <div class="row">
       <div class="field"><label>TWILIO_ACCOUNT_SID</label><input type="text" id="s-TWILIO_ACCOUNT_SID" /></div>
       <div class="field eye"><label>TWILIO_AUTH_TOKEN</label><input type="password" id="s-TWILIO_AUTH_TOKEN" /><button type="button" class="toggle-eye" onclick="togglePw('s-TWILIO_AUTH_TOKEN')">👁</button></div>
@@ -400,7 +472,7 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0}
 
   <div class="card">
     <h2>🛠 Tool Toggles</h2>
-    <p class="muted">Empty = all 9 tools enabled. Check items to restrict the agent to a subset.</p>
+    <p class="muted">Empty = all 10 tools enabled. Check items to restrict the agent to a subset.</p>
     <div class="checkbox-row" id="tools-toggles">
       <label><input type="checkbox" value="check_availability" /> check_availability</label>
       <label><input type="checkbox" value="book_appointment" /> book_appointment</label>
@@ -411,6 +483,7 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0}
       <label><input type="checkbox" value="remember_details" /> remember_details</label>
       <label><input type="checkbox" value="book_calcom" /> book_calcom</label>
       <label><input type="checkbox" value="cancel_calcom" /> cancel_calcom</label>
+      <label><input type="checkbox" value="send_whatsapp" /> send_whatsapp</label>
     </div>
     <button class="btn" onclick="saveToolToggles()" style="margin-top:10px">💾 Save Tools</button>
   </div>
@@ -491,6 +564,7 @@ function switchTab(name) {
   if (name === 'appointments') loadAppointments();
   if (name === 'calls') loadCalls(1);
   if (name === 'crm') loadCRM();
+  if (name === 'whatsapp') { loadWAChannels(); loadWAMessages(); }
   if (name === 'settings') loadSettings();
   if (name === 'logs') loadLogs();
 }
@@ -893,6 +967,86 @@ function scheduleLogsRefresh() {
   if (_logsTimer) clearInterval(_logsTimer);
   _logsTimer = setInterval(() => { if (!_logsPaused && document.querySelector('#p-logs.active')) loadLogs(); }, 5000);
 }
+
+// ============= WHATSAPP =============
+$('wa-send-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  showErr('wa-err', '');
+  const to = $('wa-to').value.trim();
+  const message = $('wa-message').value.trim();
+  const channelId = $('wa-channel-id').value.trim() || undefined;
+  if (!to || !message) { showErr('wa-err', 'Phone and message are required.'); return; }
+  try {
+    const body = { to, message };
+    if (channelId) body.channel_id = channelId;
+    const r = await apiPost('/api/whatsapp/send', body);
+    toast(`✅ WhatsApp sent to ${to} (status: ${r.message?.status || 'pending'})`);
+    $('wa-message').value = '';
+    loadWAMessages();
+  } catch (e) { showErr('wa-err', e.message); toast(e.message, 'err'); }
+});
+
+$('wa-channel-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  showErr('wc-err', '');
+  const body = {
+    waba_id: $('wc-waba-id').value.trim(),
+    phone_number_id: $('wc-phone-id').value.trim(),
+    phone_number: $('wc-phone').value.trim(),
+    access_token: $('wc-access-token').value.trim(),
+    display_name: $('wc-display-name').value.trim(),
+    number_onboarding_mode: $('wc-onboarding').value,
+    number_provider: $('wc-provider').value.trim() || 'meta_direct',
+  };
+  if (!body.waba_id || !body.phone_number_id || !body.phone_number || !body.access_token || !body.display_name) {
+    showErr('wc-err', 'All fields are required.'); return;
+  }
+  try {
+    const r = await apiPost('/api/whatsapp/channels', body);
+    toast('✅ Channel connected!');
+    $('wa-channel-form').reset();
+    loadWAChannels();
+  } catch (e) { showErr('wc-err', e.message); toast(e.message, 'err'); }
+});
+
+window.loadWAChannels = async () => {
+  try {
+    const r = await api('/api/whatsapp/channels');
+    const channels = r.channels || [];
+    if (!channels.length) { $('wa-channels').innerHTML = '<span class="muted">No channels connected.</span>'; return; }
+    let h = '<table><tr><th>Display Name</th><th>Phone</th><th>Status</th><th>ID</th></tr>';
+    channels.forEach(c => {
+      const sc = c.status === 'active' ? 'b-ok' : c.status === 'suspended' ? 'b-bad' : 'b-warn';
+      h += `<tr>
+        <td>${escHtml(c.display_name || c.phone_number)}</td>
+        <td>${escHtml(c.phone_number || '')}</td>
+        <td><span class="badge ${sc}">${escHtml(c.status || '?')}</span></td>
+        <td class="muted" style="font-size:11px">${escHtml((c.id || '').slice(0, 8))}…</td>
+      </tr>`;
+    });
+    $('wa-channels').innerHTML = h + '</table>';
+  } catch (e) { $('wa-channels').innerHTML = '<span class="muted">' + escHtml(e.message) + '</span>'; }
+};
+
+window.loadWAMessages = async () => {
+  try {
+    const r = await api('/api/whatsapp/messages?limit=50');
+    const msgs = r.data || [];
+    if (!msgs.length) { $('wa-messages').innerHTML = '<span class="muted">No WhatsApp messages sent yet.</span>'; return; }
+    let h = '<table><tr><th>Time</th><th>To</th><th>Type</th><th>Content</th><th>Status</th></tr>';
+    msgs.forEach(m => {
+      const sc = m.status === 'sent' || m.status === 'delivered' || m.status === 'read' ? 'b-ok' : m.status === 'failed' ? 'b-bad' : 'b-warn';
+      h += `<tr>
+        <td class="muted" style="white-space:nowrap">${fmtTs(m.created_at)}</td>
+        <td>${escHtml(m.phone_number)}</td>
+        <td><span class="badge b-mut">${escHtml(m.message_type)}</span></td>
+        <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis">${escHtml((m.content || '').slice(0, 80))}</td>
+        <td><span class="badge ${sc}">${escHtml(m.status)}</span></td>
+      </tr>`;
+    });
+    $('wa-messages').innerHTML = h + '</table>';
+  } catch (e) { $('wa-messages').innerHTML = '<span class="muted">' + escHtml(e.message) + '</span>'; }
+};
 
 // ============= INIT =============
 async function init() {
