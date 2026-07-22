@@ -160,7 +160,7 @@ class WhatsAppSendRequest(BaseModel):
 
 class WhatsAppTemplateRequest(BaseModel):
     to: str
-    template_name: str
+    template_name: str = "magazine_subscription"
     language_code: str = "en_US"
     channel_id: Optional[str] = None
     waba_id: Optional[str] = None
@@ -442,17 +442,18 @@ async def api_whatsapp_send(req: WhatsAppSendRequest):
     if not (auth_id and auth_token):
         raise HTTPException(400, "Vobiz WhatsApp not configured. Set VOBIZ_AUTH_ID and VOBIZ_AUTH_TOKEN.")
     try:
-        from vobiz_client import send_text_message, VobizError
-        result = await send_text_message(
+        from vobiz_client import send_whatsapp_session, VobizError
+        result = await send_whatsapp_session(
             to=req.to, body=req.message,
             channel_id=req.channel_id, waba_id=req.waba_id,
         )
         try:
             from db import log_whatsapp_message
+            msg_type = result.get("type", "text")
             await log_whatsapp_message(
                 phone_number=req.to,
-                message_type="text",
-                content=req.message,
+                message_type=msg_type,
+                content=req.message if msg_type == "text" else "template: magazine_subscription",
                 vobiz_message_id=result.get("id", ""),
                 status=result.get("status", "pending"),
             )
@@ -503,6 +504,47 @@ async def api_whatsapp_send_template(req: WhatsAppTemplateRequest):
         raise HTTPException(400, str(exc))
     except Exception as exc:
         raise HTTPException(500, f"WhatsApp template send failed: {exc}")
+
+
+@app.post("/api/whatsapp/open-session")
+async def api_whatsapp_open_session(req: WhatsAppTemplateRequest):
+    """Open a 24-hour WhatsApp conversational session by sending the magazine_subscription template."""
+    auth_id = eff("VOBIZ_AUTH_ID")
+    auth_token = eff("VOBIZ_AUTH_TOKEN")
+    if not (auth_id and auth_token):
+        raise HTTPException(400, "Vobiz WhatsApp not configured. Set VOBIZ_AUTH_ID and VOBIZ_AUTH_TOKEN.")
+    try:
+        from vobiz_client import open_whatsapp_session, VobizError
+        result = await open_whatsapp_session(
+            to=req.to,
+            template_name=req.template_name,
+            language_code=req.language_code,
+            channel_id=req.channel_id,
+            waba_id=req.waba_id,
+            components=req.components,
+        )
+        try:
+            from db import log_whatsapp_message
+            await log_whatsapp_message(
+                phone_number=req.to,
+                message_type="template",
+                content=f"session_open: {req.template_name}",
+                vobiz_message_id=result.get("id", ""),
+                status=result.get("status", "pending"),
+            )
+        except Exception:
+            pass
+        return {
+            "status": "session_initiated",
+            "message": result,
+            "note": "24-hour window opens once the recipient replies to this template.",
+        }
+    except VobizError as exc:
+        raise HTTPException(exc.status_code, f"Vobiz API error: {exc.message}")
+    except RuntimeError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:
+        raise HTTPException(500, f"Failed to open WhatsApp session: {exc}")
 
 
 @app.get("/api/whatsapp/channels")

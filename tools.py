@@ -18,7 +18,7 @@ from db import (
     add_contact_memory, get_contact_memory, compress_contact_memory,
     log_whatsapp_message,
 )
-from vobiz_client import send_text_message as _vobiz_send_text, VobizError
+from vobiz_client import send_whatsapp_session as _vobiz_send_session, VobizError
 
 logger = logging.getLogger("appointment-tools")
 
@@ -313,6 +313,8 @@ class AppointmentTools(llm.ToolContext):
         """
         Send a WhatsApp text message to the lead via Vobiz.
         Use when the lead asks you to send details, a link, or confirmation on WhatsApp.
+        If the 24-hour conversational window is closed, this automatically sends the
+        "magazine_subscription" template to reopen it before delivering the message.
         phone: recipient phone in E.164 format (e.g. +919876543210).
         message: the text body to send.
         """
@@ -321,19 +323,26 @@ class AppointmentTools(llm.ToolContext):
         if not (auth_id and auth_token):
             return "WhatsApp not configured — cannot send message."
         try:
-            result = await _vobiz_send_text(to=phone, body=message)
+            result = await _vobiz_send_session(to=phone, body=message)
             msg_id = result.get("id", "unknown")
             status = result.get("status", "pending")
+            msg_type = result.get("type", "text")
             try:
                 await log_whatsapp_message(
                     phone_number=phone,
-                    message_type="text",
-                    content=message,
+                    message_type=msg_type,
+                    content=message if msg_type == "text" else "template: magazine_subscription",
                     vobiz_message_id=msg_id,
                     status=status,
                 )
             except Exception:
                 pass
+            if msg_type == "template":
+                return (
+                    f"WhatsApp session opened with {phone} via magazine_subscription template "
+                    f"(ID: {msg_id}). The lead must reply to activate the 24-hour window, "
+                    f"then free-form messages can be sent."
+                )
             return f"WhatsApp message sent to {phone} (ID: {msg_id}, status: {status})."
         except VobizError as exc:
             logger.error("WhatsApp send failed (VobizError): %s", exc)

@@ -15,6 +15,8 @@ logger = logging.getLogger("vobiz-client")
 
 VOBIZ_BASE_URL = "https://api.vobiz.ai/api/v1/messaging"
 
+DEFAULT_TEMPLATE_NAME = "magazine_subscription"
+
 
 def _auth_headers() -> dict:
     """Build auth headers from env vars."""
@@ -97,7 +99,7 @@ async def send_text_message(
 
 async def send_template_message(
     to: str,
-    template_name: str,
+    template_name: str = DEFAULT_TEMPLATE_NAME,
     language_code: str = "en_US",
     channel_id: Optional[str] = None,
     waba_id: Optional[str] = None,
@@ -107,10 +109,13 @@ async def send_template_message(
     """Send a WhatsApp template message via Vobiz.
 
     Templates must be pre-approved in Meta Business Manager.
+    Sending a template (re)opens a fresh 24-hour service window once the
+    customer replies — after that, free-form text messages are allowed.
 
     Args:
         to: Recipient phone in E.164.
         template_name: Template name from Meta Business Manager.
+            Defaults to "magazine_subscription".
         language_code: Language code (e.g. en_US, hi_IN).
         channel_id: Vobiz channel UUID. Falls back to env var.
         waba_id: WABA ID. Falls back to env var.
@@ -162,6 +167,92 @@ async def send_template_message(
     if resp.status_code >= 400:
         raise VobizError(resp.status_code, resp.text[:500])
     return resp.json()
+
+
+async def open_whatsapp_session(
+    to: str,
+    template_name: str = DEFAULT_TEMPLATE_NAME,
+    language_code: str = "en_US",
+    channel_id: Optional[str] = None,
+    waba_id: Optional[str] = None,
+    components: Optional[list] = None,
+) -> dict:
+    """Open a 24-hour WhatsApp conversational session by sending a template.
+
+    WhatsApp only allows free-form text messages inside a 24-hour window
+    that is opened by the customer messaging you, or by you sending an
+    approved template and the customer replying to it.
+
+    This function sends the "magazine_subscription" template (or a custom
+    one) to (re)open that window.  Once the recipient replies, the 24-hour
+    timer resets and free-form messages become deliverable.
+
+    Args:
+        to: Recipient phone in E.164.
+        template_name: Meta-approved template name.  Defaults to
+            "magazine_subscription".
+        language_code: Language code (e.g. en_US, hi_IN).
+        channel_id: Vobiz channel UUID. Falls back to env var.
+        waba_id: WABA ID. Falls back to env var.
+        components: Optional template variable components.
+
+    Returns:
+        The created Message object from the Vobiz API.
+    """
+    return await send_template_message(
+        to=to,
+        template_name=template_name,
+        language_code=language_code,
+        channel_id=channel_id,
+        waba_id=waba_id,
+        components=components,
+    )
+
+
+async def send_whatsapp_session(
+    to: str,
+    body: str,
+    template_name: str = DEFAULT_TEMPLATE_NAME,
+    language_code: str = "en_US",
+    channel_id: Optional[str] = None,
+    waba_id: Optional[str] = None,
+    components: Optional[list] = None,
+) -> dict:
+    """Send a WhatsApp text message, opening a 24h session first if needed.
+
+    Tries to send a free-form text message first.  If WhatsApp rejects it
+    (because there is no active 24-hour window), falls back to sending the
+    template to open the session, then retries the text message.
+
+    Args:
+        to: Recipient phone in E.164.
+        body: Message text body.
+        template_name: Template to use if session must be opened.
+        language_code: Language code for the template.
+        channel_id: Vobiz channel UUID. Falls back to env var.
+        waba_id: WABA ID. Falls back to env var.
+        components: Optional template variable components.
+
+    Returns:
+        The created Message object from the Vobiz API (the text message if
+        it succeeded, or the template message if text was rejected).
+    """
+    try:
+        return await send_text_message(
+            to=to, body=body, channel_id=channel_id, waba_id=waba_id,
+        )
+    except VobizError as exc:
+        if exc.status_code in (400, 403):
+            logger.info("Text rejected (likely outside 24h window), sending template to open session")
+            return await open_whatsapp_session(
+                to=to,
+                template_name=template_name,
+                language_code=language_code,
+                channel_id=channel_id,
+                waba_id=waba_id,
+                components=components,
+            )
+        raise
 
 
 async def send_media_message(

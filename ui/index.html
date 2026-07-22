@@ -324,7 +324,11 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0}
         <div class="field"><label>Channel ID (optional — uses env default if blank)</label><input type="text" id="wa-channel-id" placeholder="auto from VOBIZ_WA_CHANNEL_ID" /></div>
       </div>
       <div class="field"><label>Message *</label><textarea id="wa-message" rows="4" placeholder="Hello! This is a message from TBD Campus." required></textarea></div>
-      <button type="submit" class="btn">💬 Send Message</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button type="submit" class="btn">💬 Send Message</button>
+        <button type="button" class="btn alt" onclick="openWASession()">🔓 Open 24h Session</button>
+      </div>
+      <p class="muted" style="margin-top:6px">"Open Session" sends the <span class="code">magazine_subscription</span> template to (re)open the 24-hour WhatsApp window. Free-form text is only allowed after the recipient replies.</p>
       <div class="err" id="wa-err"></div>
     </form>
   </div>
@@ -1046,6 +1050,19 @@ window.loadWAMessages = async () => {
     });
     $('wa-messages').innerHTML = h + '</table>';
   } catch (e) { $('wa-messages').innerHTML = '<span class="muted">' + escHtml(e.message) + '</span>'; }
+};
+
+window.openWASession = async () => {
+  const to = $('wa-to').value.trim();
+  if (!to) { toast('Enter a recipient phone first.', 'err'); return; }
+  try {
+    const body = { to };
+    const cid = $('wa-channel-id').value.trim();
+    if (cid) body.channel_id = cid;
+    const r = await apiPost('/api/whatsapp/open-session', body);
+    toast(`🔓 Session initiated with ${to} via magazine_subscription template`);
+    loadWAMessages();
+  } catch (e) { toast(e.message, 'err'); }
 };
 
 // ============= INIT =============
